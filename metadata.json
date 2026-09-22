@@ -1,0 +1,6 @@
+{
+  "name": "CQT - Code Quality Tool",
+  "description": "Configurable code quality analysis platform for GitHub repositories and ZIP source code.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
