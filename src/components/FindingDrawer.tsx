@@ -61,16 +61,16 @@ export const FindingDrawer: React.FC<FindingDrawerProps> = ({ finding, onClose }
       <div 
         className="w-full max-w-xl h-full flex flex-col border-l shadow-2xl overflow-y-auto"
         style={{ 
-          backgroundColor: '#111722', 
+          backgroundColor: 'var(--cqt-card)', 
           borderColor: 'var(--cqt-border)' 
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-5 border-b flex items-start justify-between bg-[#0e131c]" style={{ borderColor: 'var(--cqt-border)' }}>
+        <div className="p-5 border-b flex items-start justify-between" style={{ backgroundColor: 'var(--cqt-card-hover)', borderColor: 'var(--cqt-border)' }}>
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="font-mono text-sm font-bold px-2 py-0.5 rounded bg-indigo-950/80 text-indigo-300 border border-indigo-700/60">
+              <span className="font-mono text-sm font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
                 {finding.rule_id}
               </span>
               <span className={`cqt-badge ${getSeverityBadgeClass(finding.severity)} uppercase text-[11px]`}>

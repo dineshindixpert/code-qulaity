@@ -106,7 +106,7 @@ export const CommandSearchModal: React.FC<CommandSearchModalProps> = ({
       <div 
         className="w-full max-w-2xl rounded-lg border shadow-2xl overflow-hidden flex flex-col"
         style={{ 
-          backgroundColor: '#121722', 
+          backgroundColor: 'var(--cqt-card)', 
           borderColor: 'var(--cqt-border)' 
         }}
         onClick={(e) => e.stopPropagation()}
@@ -120,17 +120,17 @@ export const CommandSearchModal: React.FC<CommandSearchModalProps> = ({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Type a command or search projects, rules (E501, B101), runs, finding IDs..."
-            className="w-full bg-transparent text-slate-100 placeholder-slate-500 text-sm focus:outline-none"
+            className="w-full bg-transparent text-slate-900 placeholder-slate-400 text-sm focus:outline-none"
           />
           {query && (
             <button 
               onClick={() => setQuery('')}
-              className="text-slate-400 hover:text-white mr-2"
+              className="text-slate-400 hover:text-slate-700 mr-2"
             >
               <X className="w-4 h-4" />
             </button>
           )}
-          <span className="text-[11px] font-mono text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">
+          <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
             ESC
           </span>
         </div>

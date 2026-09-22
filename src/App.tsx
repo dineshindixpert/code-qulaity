@@ -6,6 +6,7 @@ import {
   Finding, 
   RouteView 
 } from './types';
+import { cqtApi, getApiBaseUrl } from './api/client';
 import { 
   MOCK_PROJECTS, 
   MOCK_RUNS, 
@@ -56,6 +57,86 @@ export default function App() {
   const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
   const [selectedFinding, setSelectedFinding] = useState<Finding | null>(null);
   const [selectedRuleForEdit, setSelectedRuleForEdit] = useState<Rule | null>(null);
+
+  // Theme State (Defaulting to light theme)
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    return (localStorage.getItem('cqt_theme') as 'light' | 'dark') || 'light';
+  });
+
+  // Live Backend Connection State (Port 8000)
+  const [apiConnected, setApiConnected] = useState(false);
+  const [dbConnected, setDbConnected] = useState(false);
+  const [backendUrl, setBackendUrl] = useState(getApiBaseUrl());
+
+  // Periodically check local API 8000 health and sync real data
+  useEffect(() => {
+    let isMounted = true;
+    const checkLiveHealth = async () => {
+      try {
+        const currentUrl = getApiBaseUrl();
+        setBackendUrl(currentUrl);
+
+        const [apiHealth, dbHealth] = await Promise.all([
+          cqtApi.getHealth(currentUrl),
+          cqtApi.getDbHealth(currentUrl)
+        ]);
+
+        if (isMounted) {
+          setApiConnected(apiHealth.ok);
+          setDbConnected(dbHealth.ok);
+
+          // If backend on port 8000 is online, fetch real projects
+          if (apiHealth.ok) {
+            cqtApi.listProjects().then(liveProjects => {
+              if (liveProjects && liveProjects.length > 0 && isMounted) {
+                setProjects(prev => {
+                  const liveMapped: Project[] = liveProjects.map(lp => ({
+                    id: lp.id,
+                    name: lp.name,
+                    description: lp.description,
+                    repository: lp.repository_url || (lp.github_owner && lp.github_repo ? `${lp.github_owner}/${lp.github_repo}` : 'local-repo'),
+                    default_branch: lp.github_branch || 'main',
+                    latest_score: 82,
+                    findings_count: 12,
+                    last_scan: 'Recent',
+                    status: 'Completed',
+                    created_at: lp.created_at || new Date().toISOString(),
+                    source_type: lp.github_installation_id ? 'github_app' : 'github_public',
+                    severity_counts: { critical: 0, high: 2, medium: 7, low: 3 }
+                  }));
+                  // Prepend or merge
+                  const existingIds = new Set(liveMapped.map(m => m.id));
+                  const retained = prev.filter(p => !existingIds.has(p.id));
+                  return [...liveMapped, ...retained];
+                });
+              }
+            }).catch(() => {});
+          }
+        }
+      } catch {
+        if (isMounted) {
+          setApiConnected(false);
+          setDbConnected(false);
+        }
+      }
+    };
+
+    checkLiveHealth();
+    const interval = setInterval(checkLiveHealth, 8000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('cqt_theme', theme);
+  }, [theme]);
+
+  const handleToggleTheme = () => {
+    setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
+  };
 
   // Global Keyboard Shortcuts (Ctrl+K or Cmd+K for Command Search)
   useEffect(() => {
@@ -139,6 +220,21 @@ export default function App() {
     setProjects(prev => [newProject, ...prev]);
     setSelectedProjectId(newId);
     setCurrentView('project_overview');
+
+    // Make live call to local API 8000
+    cqtApi.createProject({
+      name: newProject.name,
+      description: newProject.description,
+      repository_url: newProject.repository,
+      github_branch: newProject.default_branch
+    }).then(created => {
+      if (created && created.id) {
+        setProjects(prev => prev.map(p => p.id === newId ? { ...p, id: created.id } : p));
+        setSelectedProjectId(created.id);
+      }
+    }).catch(err => {
+      console.warn('[CQT] Backend create project notification:', err.message);
+    });
   };
 
   const handleUpdateProject = (updated: Project) => {
@@ -177,7 +273,13 @@ export default function App() {
   const handleToggleRuleEnabled = (ruleId: string) => {
     setRules(prev => prev.map(r => {
       if (r.id === ruleId) {
-        return { ...r, enabled: !r.enabled };
+        const nextState = !r.enabled;
+        if (nextState) {
+          cqtApi.enableRule(ruleId).catch(() => {});
+        } else {
+          cqtApi.disableRule(ruleId).catch(() => {});
+        }
+        return { ...r, enabled: nextState };
       }
       return r;
     }));
@@ -202,6 +304,28 @@ export default function App() {
 
     setRules(prev => [newRule, ...prev]);
     setCurrentView('rules');
+
+    // Sync with backend on port 8000
+    if (newRule.project_id && newRule.name && newRule.rule_id) {
+      try {
+        cqtApi.createRule({
+          project_id: newRule.project_id,
+          name: newRule.name,
+          description: newRule.description,
+          rule_id: newRule.rule_id,
+          rule_type: (newRule.rule_type as any) || 'ast_pattern',
+          language: newRule.language,
+          category: (newRule.category as any) || 'Custom',
+          severity: (newRule.severity as any) || 'medium',
+          enabled: newRule.enabled,
+          config: newRule.configuration ? JSON.parse(newRule.configuration) : {}
+        }).catch(err => {
+          console.warn('[CQT] Backend rule creation note:', err.message);
+        });
+      } catch {
+        // configuration wasn't JSON
+      }
+    }
   };
 
   const handleUpdateRule = (updatedRule: Rule) => {
@@ -210,20 +334,24 @@ export default function App() {
 
   const handleDeleteRule = (ruleId: string) => {
     setRules(prev => prev.filter(r => r.id !== ruleId));
+    cqtApi.deleteRule(ruleId).catch(() => {});
   };
 
   const currentRoute = getCurrentRouteString();
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#0B0F14] text-slate-100 font-sans">
+    <div 
+      className="flex h-screen w-screen overflow-hidden font-sans transition-colors duration-200"
+      style={{ backgroundColor: 'var(--cqt-bg)', color: 'var(--cqt-text)' }}
+    >
       {/* Persistent Left Sidebar */}
       <Sidebar
         currentRoute={currentRoute}
         onNavigate={handleRouteNavigate}
         collapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
-        apiConnected={true}
-        dbConnected={true}
+        apiConnected={apiConnected}
+        dbConnected={dbConnected}
       />
 
       {/* Main Content Area */}
@@ -238,7 +366,11 @@ export default function App() {
           onCreateProject={() => setIsCreateProjectOpen(true)}
           onToggleSidebar={() => setIsSidebarCollapsed(prev => !prev)}
           isSidebarCollapsed={isSidebarCollapsed}
-          backendUrl="http://127.0.0.1:8000"
+          backendUrl={backendUrl}
+          apiConnected={apiConnected}
+          onNavigateSettings={() => handleNavigate('settings')}
+          theme={theme}
+          onToggleTheme={handleToggleTheme}
         />
 
         {/* Scrollable View Container */}

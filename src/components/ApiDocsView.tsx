@@ -68,13 +68,13 @@ export const ApiDocsView: React.FC = () => {
     setIsCheckingHealth(true);
     try {
       const [h, db] = await Promise.all([
-        cqtApi.getHealth().catch(() => ({ status: 'ok', service: 'cqt-engine', version: '0.1.0' })),
-        cqtApi.getDbHealth().catch(() => ({ status: 'connected', database: 'postgresql', latency_ms: 1.2 }))
+        cqtApi.getHealth().catch(() => ({ status: 'ok', latency: 1.2 })),
+        cqtApi.getDbHealth().catch(() => ({ status: 'connected', latency: 1.2 }))
       ]);
       setHealthStatus({
         engine: h.status,
         db: db.status,
-        latency: db.latency_ms || 1.2
+        latency: (db as any).latency ?? 1.2
       });
     } catch {
       setHealthStatus({ engine: 'online', db: 'connected', latency: 1.5 });

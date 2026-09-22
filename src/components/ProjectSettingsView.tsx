@@ -11,6 +11,7 @@ import {
   FolderGit2
 } from 'lucide-react';
 import { Project } from '../types';
+import { cqtApi } from '../api/client';
 
 interface ProjectSettingsViewProps {
   project: Project;
@@ -205,7 +206,7 @@ export const ProjectSettingsView: React.FC<ProjectSettingsViewProps> = ({
                 To trigger automatic CQT quality checks on GitHub Pull Requests, configure a webhook pointing to:
               </p>
               <div className="p-2 rounded bg-black/40 font-mono text-[11px] text-indigo-300 select-all border border-slate-800">
-                http://127.0.0.1:8000/api/webhooks/github?project_id={project.id}
+                {cqtApi.getBaseUrl()}/api/webhooks/github?project_id={project.id}
               </div>
             </div>
 

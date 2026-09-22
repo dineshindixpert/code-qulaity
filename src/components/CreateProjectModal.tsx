@@ -100,25 +100,25 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       <div 
         className="w-full max-w-xl rounded-lg border shadow-2xl overflow-hidden my-8"
         style={{ 
-          backgroundColor: '#121722', 
+          backgroundColor: 'var(--cqt-card)', 
           borderColor: 'var(--cqt-border)' 
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b flex items-center justify-between bg-[#0e131c]" style={{ borderColor: 'var(--cqt-border)' }}>
+        <div className="p-4 sm:p-5 border-b flex items-center justify-between" style={{ backgroundColor: 'var(--cqt-card-hover)', borderColor: 'var(--cqt-border)' }}>
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded bg-indigo-900/60 border border-indigo-700/60 flex items-center justify-center text-indigo-400">
+            <div className="w-8 h-8 rounded bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600">
               <FolderGit2 className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-base font-semibold text-white">Create New Project</h2>
-              <p className="text-xs text-slate-400">Configure project repository and code quality analyzer.</p>
+              <h2 className="text-base font-semibold text-slate-900">Create New Project</h2>
+              <p className="text-xs text-slate-500">Configure project repository and code quality analyzer.</p>
             </div>
           </div>
           <button 
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800"
+            className="text-slate-400 hover:text-slate-700 p-1 rounded hover:bg-slate-100"
           >
             <X className="w-5 h-5" />
           </button>

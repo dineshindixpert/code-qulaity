@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 
@@ -981,11 +982,35 @@ async function startServer() {
   // Vite Integration (SPA Fallback)
   // ==========================================
   if (process.env.NODE_ENV !== 'production') {
+    const rootDir = process.cwd();
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      root: rootDir,
+      server: { 
+        middlewareMode: true,
+        watch: process.env.DISABLE_HMR === 'true' ? null : {}
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
+
+    // Explicit fallback for index.html navigation on all platforms (including Windows)
+    app.use('*', async (req, res, next) => {
+      const url = req.originalUrl;
+      if (url.startsWith('/api') || url.startsWith('/health') || url === '/openapi.json') {
+        return next();
+      }
+      try {
+        const indexPath = path.resolve(rootDir, 'index.html');
+        if (fs.existsSync(indexPath)) {
+          let template = fs.readFileSync(indexPath, 'utf-8');
+          template = await vite.transformIndexHtml(url, template);
+          return res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
+        }
+        next();
+      } catch (e) {
+        next(e);
+      }
+    });
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));

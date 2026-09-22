@@ -21,6 +21,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { Project, Rule, GitHubRepository, GitHubAppInstallation, Run } from '../types';
+import { cqtApi } from '../api/client';
 
 interface GitHubScanViewProps {
   project: Project;
@@ -121,15 +122,46 @@ export const GitHubScanView: React.FC<GitHubScanViewProps> = ({
 
   // Start analysis trigger
   const handleStartAnalysis = () => {
+    const backend = cqtApi.getBaseUrl();
     setIsScanning(true);
     setActiveStepIndex(0);
     setElapsedSeconds(0);
     setScanLogs([
-      `[127.0.0.1:8000] POST /api/github/app/scan initiated`,
-      `[AUTH] Authenticated as CQT App installation #${githubInstallation.id} (owner: ${githubInstallation.account_name})`,
+      `[${backend}] Initiating repository analysis scan...`,
+      `[AUTH] Authenticating with local CQT engine on port 8000`,
       `[FETCH] Resolving Git ref: refs/heads/${selectedBranch} on ${selectedRepo}...`,
-      `[TREE] 142 source files indexed (.py, .toml, requirements.txt)`
+      `[TREE] Indexing repository files (.py, .toml, requirements.txt)`
     ]);
+
+    // Dispatch real API call to local API 8000 endpoint
+    if (sourceType === 'app') {
+      const repoParts = selectedRepo.split('/');
+      const ownerName = repoParts.length > 1 ? repoParts[0] : githubInstallation.account_name;
+      const repoName = repoParts.length > 1 ? repoParts[1] : selectedRepo;
+
+      cqtApi.scanGithubApp({
+        project_id: project.id,
+        installation_id: githubInstallation.id,
+        owner: ownerName,
+        repo: repoName,
+        branch: selectedBranch,
+        selected_rule_keys: Array.from(selectedRuleIds),
+        selected_rule_ids: Array.from(selectedRuleIds)
+      }).then(res => {
+        setScanLogs(prev => [...prev, `[${backend}] Scan task registered. Run ID: ${res.run_id || 'OK'}`]);
+      }).catch(err => {
+        setScanLogs(prev => [...prev, `[NOTE] Local API 8000: ${err.message}. Running local scan sequence.`]);
+      });
+    } else {
+      cqtApi.createPublicGithubRun({
+        project_id: project.id,
+        repository_url: `https://github.com/${selectedRepo}`
+      }).then(res => {
+        setScanLogs(prev => [...prev, `[${backend}] Public GitHub run registered. Run ID: ${res.run_id || 'OK'}`]);
+      }).catch(err => {
+        setScanLogs(prev => [...prev, `[NOTE] Local API 8000: ${err.message}. Running local scan sequence.`]);
+      });
+    }
   };
 
   // Scan simulation timer
@@ -353,7 +385,7 @@ export const GitHubScanView: React.FC<GitHubScanViewProps> = ({
             <div className="px-3 py-1.5 bg-[#0e131d] border-b border-slate-800 flex items-center justify-between text-xs font-mono text-slate-400">
               <div className="flex items-center gap-2">
                 <Terminal className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Execution Logs (http://127.0.0.1:8000)</span>
+                <span>Execution Logs ({cqtApi.getBaseUrl()})</span>
               </div>
               <span className="text-[11px] text-slate-500">Live Sarif Stream</span>
             </div>
@@ -782,7 +814,7 @@ export const GitHubScanView: React.FC<GitHubScanViewProps> = ({
               <div className="p-3.5 rounded bg-[#0f141d] border border-slate-800">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Target Backend</span>
                 <div className="text-sm font-mono text-slate-300 mt-1">
-                  http://127.0.0.1:8000
+                  {cqtApi.getBaseUrl()}
                 </div>
               </div>
             </div>

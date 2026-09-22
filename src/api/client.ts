@@ -25,17 +25,56 @@ import {
   CustomRuleResponse
 } from '../types';
 
-const BASE_URL = ''; // Relative to origin
+export const DEFAULT_API_BASE_URL = 'http://127.0.0.1:8000';
+
+export function getApiBaseUrl(): string {
+  if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem('cqt_api_base_url');
+    if (saved) return saved.trim();
+  }
+  return ((import.meta as any).env?.VITE_API_URL as string) || DEFAULT_API_BASE_URL;
+}
+
+export function setApiBaseUrl(url: string): void {
+  if (typeof window !== 'undefined') {
+    const clean = url.trim().replace(/\/$/, '');
+    localStorage.setItem('cqt_api_base_url', clean);
+  }
+}
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const url = `${BASE_URL}${endpoint}`;
-  const response = await fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-    ...options,
-  });
+  const base = getApiBaseUrl().replace(/\/$/, '');
+  const targetUrl = base ? `${base}${endpoint}` : endpoint;
+
+  let response: Response;
+
+  try {
+    response = await fetch(targetUrl, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+      ...options,
+    });
+  } catch (err) {
+    // If direct absolute call failed (e.g., CORS or network restriction in browser),
+    // and targetUrl was absolute, attempt relative endpoint via Vite proxy (/api, /health)
+    if (base && !endpoint.startsWith('http')) {
+      try {
+        response = await fetch(endpoint, {
+          headers: {
+            'Content-Type': 'application/json',
+            ...options.headers,
+          },
+          ...options,
+        });
+      } catch {
+        throw new Error(`Failed to connect to CQT backend at ${base} or local proxy. Ensure the server is running on port 8000.`);
+      }
+    } else {
+      throw new Error(`Failed to connect to CQT backend at ${targetUrl}. Ensure the server is running on port 8000.`);
+    }
+  }
 
   if (!response.ok) {
     let errorDetail = `Request failed with status ${response.status}`;
@@ -59,6 +98,64 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 }
 
 export const cqtApi = {
+  // Configuration
+  getBaseUrl: getApiBaseUrl,
+  setBaseUrl: setApiBaseUrl,
+
+  // Health checks
+  getHealth: async (customUrl?: string) => {
+    const base = (customUrl || getApiBaseUrl()).replace(/\/$/, '');
+    const startTime = performance.now();
+    try {
+      const res = await fetch(`${base}/health`, { method: 'GET' });
+      const latency = Math.round(performance.now() - startTime);
+      if (res.ok) {
+        const data = await res.json();
+        return { ok: true, latency, data, status: 'healthy' };
+      }
+      return { ok: false, latency, status: `HTTP ${res.status}`, error: `HTTP ${res.status}` };
+    } catch (err: any) {
+      // Try fallback to proxy
+      try {
+        const proxyRes = await fetch('/health', { method: 'GET' });
+        const latency = Math.round(performance.now() - startTime);
+        if (proxyRes.ok) {
+          const data = await proxyRes.json();
+          return { ok: true, latency, data, status: 'healthy (proxied)' };
+        }
+      } catch {
+        // failed both
+      }
+      return { ok: false, latency: 0, status: 'offline', error: err?.message || 'Connection refused' };
+    }
+  },
+
+  getDbHealth: async (customUrl?: string) => {
+    const base = (customUrl || getApiBaseUrl()).replace(/\/$/, '');
+    const startTime = performance.now();
+    try {
+      const res = await fetch(`${base}/health/db`, { method: 'GET' });
+      const latency = Math.round(performance.now() - startTime);
+      if (res.ok) {
+        const data = await res.json();
+        return { ok: true, latency, data, status: 'connected' };
+      }
+      return { ok: false, latency, status: `HTTP ${res.status}`, error: `HTTP ${res.status}` };
+    } catch (err: any) {
+      try {
+        const proxyRes = await fetch('/health/db', { method: 'GET' });
+        const latency = Math.round(performance.now() - startTime);
+        if (proxyRes.ok) {
+          const data = await proxyRes.json();
+          return { ok: true, latency, data, status: 'connected (proxied)' };
+        }
+      } catch {
+        // failed both
+      }
+      return { ok: false, latency: 0, status: 'offline', error: err?.message || 'Connection refused' };
+    }
+  },
+
   // Runs
   createManualRun: (data: ManualRunRequest) => 
     request<ManualRunResponse>('/api/runs/manual', {
@@ -101,15 +198,32 @@ export const cqtApi = {
 
   // Upload
   uploadZip: async (projectId: string, file: File) => {
+    const base = getApiBaseUrl().replace(/\/$/, '');
     const formData = new FormData();
     formData.append('project_id', projectId);
     formData.append('file', file);
-    const res = await fetch('/api/upload/zip', {
-      method: 'POST',
-      body: formData
-    });
-    if (!res.ok) throw new Error(`Upload failed with status ${res.status}`);
-    return res.json();
+
+    const targetUrl = base ? `${base}/api/upload/zip` : '/api/upload/zip';
+
+    try {
+      const res = await fetch(targetUrl, {
+        method: 'POST',
+        body: formData
+      });
+      if (!res.ok) throw new Error(`Upload failed with status ${res.status}`);
+      return res.json();
+    } catch (err) {
+      if (base) {
+        // Fallback to proxy
+        const res = await fetch('/api/upload/zip', {
+          method: 'POST',
+          body: formData
+        });
+        if (!res.ok) throw new Error(`Upload failed with status ${res.status}`);
+        return res.json();
+      }
+      throw err;
+    }
   },
 
   // GitHub
@@ -205,13 +319,6 @@ export const cqtApi = {
     request<CustomRuleResponse>(`/api/rules/${ruleId}/disable`, {
       method: 'PATCH'
     }),
-
-  // Health
-  getHealth: () => 
-    request<{ status: string; service: string; version: string }>('/health'),
-
-  getDbHealth: () => 
-    request<{ status: string; database: string; latency_ms?: number }>('/health/db'),
 
   getOpenApiSpec: () => 
     request<Record<string, unknown>>('/openapi.json')

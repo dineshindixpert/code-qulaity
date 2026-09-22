@@ -85,16 +85,16 @@ export const RuleDetailModal: React.FC<RuleDetailModalProps> = ({
       <div 
         className="w-full max-w-2xl rounded-lg border shadow-2xl overflow-hidden my-8"
         style={{ 
-          backgroundColor: '#121722', 
+          backgroundColor: 'var(--cqt-card)', 
           borderColor: 'var(--cqt-border)' 
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-5 border-b flex items-start justify-between bg-[#0e131d]" style={{ borderColor: 'var(--cqt-border)' }}>
+        <div className="p-5 border-b flex items-start justify-between" style={{ backgroundColor: 'var(--cqt-card-hover)', borderColor: 'var(--cqt-border)' }}>
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="font-mono text-sm font-bold px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800">
+              <span className="font-mono text-sm font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
                 {rule.rule_id}
               </span>
               {rule.is_custom ? (
@@ -108,7 +108,7 @@ export const RuleDetailModal: React.FC<RuleDetailModalProps> = ({
                 {enabled ? 'Active' : 'Disabled'}
               </span>
             </div>
-            <h2 className="text-lg font-semibold text-white">Rule Details</h2>
+            <h2 className="text-lg font-semibold text-slate-900">Rule Details</h2>
             <div className="text-[11px] font-mono text-slate-500 mt-0.5">
               PUT /api/rules/{rule.rule_id}
             </div>
@@ -116,7 +116,7 @@ export const RuleDetailModal: React.FC<RuleDetailModalProps> = ({
 
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800"
+            className="text-slate-400 hover:text-slate-700 p-1 rounded hover:bg-slate-100"
           >
             <X className="w-5 h-5" />
           </button>
